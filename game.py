@@ -3,10 +3,91 @@ Number Guessing Game
 ====================
 A simple command-line game where the player tries to guess a randomly
 generated number within a given range. The game tracks the number of
-attempts and gives hints after each guess.
+attempts, saves scores, and gives hints after each guess.
 """
 
 import random
+import json
+from datetime import datetime
+
+SCORES_FILE = "scores.json"
+
+
+def load_scores() -> dict:
+    """
+    Load scores from the JSON file.
+
+    Returns:
+        dict: Score data.
+    """
+    try:
+        with open(SCORES_FILE, "r") as file:
+            return json.load(file)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {"high_scores": []}
+
+
+def save_scores(data: dict) -> None:
+    """
+    Save scores to the JSON file.
+
+    Args:
+        data (dict): Score data to save.
+    """
+    with open(SCORES_FILE, "w") as file:
+        json.dump(data, file, indent=4)
+
+
+def add_score(player_name: str, attempts: int) -> None:
+    """
+    Add a player's score to the leaderboard.
+
+    Args:
+        player_name (str): Name of the player.
+        attempts (int): Number of attempts taken.
+    """
+    data = load_scores()
+
+    score_entry = {
+        "name": player_name,
+        "attempts": attempts,
+        "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+
+    data["high_scores"].append(score_entry)
+
+    # Sort by lowest attempts
+    data["high_scores"] = sorted(
+        data["high_scores"],
+        key=lambda x: x["attempts"]
+    )
+
+    # Keep only top 10 scores
+    data["high_scores"] = data["high_scores"][:10]
+
+    save_scores(data)
+
+
+def display_leaderboard() -> None:
+    """
+    Display the top scores leaderboard.
+    """
+    data = load_scores()
+
+    print("\n🏆 LEADERBOARD")
+    print("=" * 40)
+
+    if not data["high_scores"]:
+        print("No scores yet.")
+        return
+
+    for index, score in enumerate(data["high_scores"], start=1):
+        print(
+            f"{index}. "
+            f"{score['name']} - "
+            f"{score['attempts']} attempts "
+            f"({score['date']})"
+        )
 
 
 def get_random_number(low: int = 1, high: int = 100) -> int:
@@ -69,16 +150,12 @@ def play_game(low: int = 1, high: int = 100) -> int:
     """
     Run a single round of the Number Guessing Game.
 
-    The player is asked to guess a randomly generated number within the range.
-    After each guess, a hint is provided. The game ends when the player
-    guesses correctly.
-
     Args:
-        low (int): Lower bound of the guessing range. Default is 1.
-        high (int): Upper bound of the guessing range. Default is 100.
+        low (int): Lower bound of the guessing range.
+        high (int): Upper bound of the guessing range.
 
     Returns:
-        int: The number of attempts it took the player to guess correctly.
+        int: Number of attempts.
     """
     print(f"\n🎯 I'm thinking of a number between {low} and {high}.")
     print("Can you guess what it is?\n")
@@ -89,11 +166,23 @@ def play_game(low: int = 1, high: int = 100) -> int:
     while True:
         guess = get_player_guess(low, high)
         attempts += 1
+
         hint = get_hint(guess, secret)
         print(f"  → {hint}")
 
         if hint == "Correct!":
-            print(f"\n🎉 You got it in {attempts} attempt{'s' if attempts != 1 else ''}!")
+            print(
+                f"\n🎉 You got it in "
+                f"{attempts} attempt{'s' if attempts != 1 else ''}!"
+            )
+
+            player_name = input(
+                "Enter your name for the leaderboard: "
+            ).strip()
+
+            add_score(player_name, attempts)
+
+            print("🏆 Score saved!")
             break
 
     return attempts
@@ -102,7 +191,6 @@ def play_game(low: int = 1, high: int = 100) -> int:
 def main():
     """
     Entry point for the Number Guessing Game.
-    Displays a welcome message and allows the player to play multiple rounds.
     """
     print("=" * 40)
     print("   Welcome to the Number Guessing Game!")
@@ -111,7 +199,10 @@ def main():
     while True:
         play_game()
 
+        display_leaderboard()
+
         again = input("\nPlay again? (yes/no): ").strip().lower()
+
         if again not in ("yes", "y"):
             print("\nThanks for playing! Goodbye! 👋")
             break
